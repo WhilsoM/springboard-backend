@@ -26,17 +26,17 @@ func (r *authRepository) CreateUser(ctx context.Context, user lib.User) (lib.Use
 	var createdUser lib.User
 
 	query := `
-        INSERT INTO users (email, password_hash, role, full_name)
+        INSERT INTO users (email, password_hash, role, display_name)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, role, full_name, email
+        RETURNING id, role, display_name, email
     `
 
 	err := r.dbpool.QueryRow(ctx, query,
 		user.Email,
 		user.PasswordHash,
 		user.Role,
-		user.FullName,
-	).Scan(&createdUser.ID, &createdUser.Role, &createdUser.FullName, &createdUser.Email)
+		user.DisplayName,
+	).Scan(&createdUser.ID, &createdUser.Role, &createdUser.DisplayName, &createdUser.Email)
 	if err != nil {
 		return lib.User{}, err
 	}
@@ -46,10 +46,10 @@ func (r *authRepository) CreateUser(ctx context.Context, user lib.User) (lib.Use
 
 func (r *authRepository) LoginUser(ctx context.Context, email string) (lib.User, error) {
 	var user lib.User
-	query := `SELECT id, email, password_hash, role, full_name FROM users WHERE email = $1`
+	query := `SELECT id, email, password_hash, role, display_name FROM users WHERE email = $1`
 
 	err := r.dbpool.QueryRow(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.FullName,
+		&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.DisplayName,
 	)
 	return user, err
 }

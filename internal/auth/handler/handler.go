@@ -60,13 +60,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	var req dto.RefreshTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		lib.WriteErrorJSON(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	response, err := h.authService.RefreshTokens(r.Context(), req.RefreshToken)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		lib.WriteErrorJSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 

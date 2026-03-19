@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"springboard/internal/lib"
-	"springboard/internal/user/dto"
 	"springboard/internal/user/repository"
 )
 
@@ -14,7 +14,7 @@ var (
 )
 
 type UserService interface {
-	GetMe(ctx context.Context, userID string) (dto.UserResponse, error)
+	GetMe(ctx context.Context, userID string, role lib.UserRole) (interface{}, error)
 }
 
 type userService struct {
@@ -27,16 +27,7 @@ func NewUserService(repo repository.UserRepository) UserService {
 	}
 }
 
-func (s *userService) GetMe(ctx context.Context, userID string) (dto.UserResponse, error) {
-	user, err := s.repo.GetUserByID(ctx, userID)
-	if err != nil {
-		return dto.UserResponse{}, ErrUserNotFound
-	}
-
-	return dto.UserResponse{
-		ID:       user.ID,
-		Role:     lib.UserRole(user.Role),
-		Email:    user.Email,
-		FullName: user.FullName,
-	}, nil
+func (s *userService) GetMe(ctx context.Context, userID string, role lib.UserRole) (interface{}, error) {
+	log.Print("GetMe service start")
+	return s.repo.GetFullUserByID(ctx, userID, role)
 }

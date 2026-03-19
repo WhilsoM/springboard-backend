@@ -35,6 +35,11 @@ func NewAuthService(repo repository.AuthRepository, jwtManager *lib.JWTManager) 
 
 // register a new user
 func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (dto.RegisterResponse, error) {
+	role := lib.UserRole(req.Role)
+	if !role.IsValid() {
+		return dto.RegisterResponse{}, errors.New("invalid role provided")
+	}
+
 	passwordHash, err := lib.GenerateHashByPassword(req.Password)
 	if err != nil {
 		return dto.RegisterResponse{}, err
@@ -43,8 +48,8 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (dt
 	userEntity := lib.User{
 		Email:        req.Email,
 		PasswordHash: passwordHash,
-		Role:         string(req.Role),
-		FullName:     req.FullName,
+		Role:         req.Role,
+		DisplayName:  req.DisplayName,
 	}
 
 	createdUser, err := s.repo.CreateUser(ctx, userEntity)
@@ -55,7 +60,7 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (dt
 	accessToken, refreshToken, err := s.jwtManager.GenerateTokenPair(
 		createdUser.ID,
 		createdUser.Email,
-		createdUser.Role,
+		string(createdUser.Role),
 	)
 	if err != nil {
 		return dto.RegisterResponse{}, err
@@ -80,7 +85,7 @@ func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (dto.Logi
 	accessToken, refreshToken, err := s.jwtManager.GenerateTokenPair(
 		user.ID,
 		user.Email,
-		user.Role,
+		string(user.Role),
 	)
 	if err != nil {
 		return dto.LoginResponse{}, err

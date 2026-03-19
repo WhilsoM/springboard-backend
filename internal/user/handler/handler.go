@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"log"
 	"net/http"
 	"springboard/internal/lib"
 	"springboard/internal/middleware"
@@ -21,21 +20,20 @@ func (h *UserHandler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handle
 }
 
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	val := r.Context().Value(middleware.UserIDKey)
-	userID, ok := val.(string)
-	if !ok {
-		lib.WriteErrorJSON(w, http.StatusUnauthorized, "Unauthorized: user_id not found in context")
+	ctx := r.Context()
+
+	// get data from context
+	userID, okID := ctx.Value(middleware.UserIDKey).(string)
+	userRole, okRole := ctx.Value(middleware.UserRoleKey).(string)
+
+	if !okID || !okRole {
+		lib.WriteErrorJSON(w, http.StatusUnauthorized, "Unauthorized: identity missing in context")
 		return
 	}
 
-	log.Printf("GetMe user id: %s", userID)
-	user, err := h.userService.GetMe(r.Context(), userID)
+	user, err := h.userService.GetMe(ctx, userID, lib.UserRole(userRole))
 	if err != nil {
-		if err == service.ErrUserNotFound {
-			lib.WriteErrorJSON(w, http.StatusNotFound, "user not found")
-			return
-		}
-		lib.WriteErrorJSON(w, http.StatusInternalServerError, "failed to get user: "+err.Error())
+		lib.WriteErrorJSON(w, http.StatusNotFound, "User profile not found")
 		return
 	}
 

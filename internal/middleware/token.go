@@ -22,13 +22,13 @@ func CheckTokenMiddleware(jwtManager *lib.JWTManager) func(http.Handler) http.Ha
 
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				http.Error(w, "Unauthorized: invalid header format", http.StatusUnauthorized)
+				lib.WriteErrorJSON(w, http.StatusUnauthorized, "Unauthorized: invalid header format")
 				return
 			}
 
 			claims, err := jwtManager.ValidateToken(parts[1])
 			if err != nil {
-				http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+				lib.WriteErrorJSON(w, http.StatusUnauthorized, "Unauthorized: invalid token")
 				return
 			}
 

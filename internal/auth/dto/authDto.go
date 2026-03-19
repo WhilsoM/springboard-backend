@@ -3,10 +3,10 @@ package dto
 import "springboard/internal/lib"
 
 type RegisterRequest struct {
-	Role     lib.UserRole `json:"role"`
-	Email    string       `json:"email"`
-	FullName string       `json:"full_name"`
-	Password string       `json:"password"`
+	Role        lib.UserRole `json:"role"`
+	Email       string       `json:"email"`
+	DisplayName string       `json:"display_name"`
+	Password    string       `json:"password"`
 }
 
 type RegisterResponse struct {
