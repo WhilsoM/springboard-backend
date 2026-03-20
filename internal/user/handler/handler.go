@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 	"springboard/internal/lib"
 	"springboard/internal/middleware"
+	"springboard/internal/user/dto"
 	"springboard/internal/user/service"
 )
 
@@ -17,6 +20,11 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("GET /users/me", authMW(http.HandlerFunc(h.GetMe)))
+	mux.Handle("DELETE /users/me", authMW(http.HandlerFunc(h.DeleteMe)))
+	mux.Handle("PUT /users/me", authMW(http.HandlerFunc(h.UpdateMe)))
+	mux.Handle("POST /users/me/verify", authMW(http.HandlerFunc(h.Verify)))
+	mux.Handle("PATCH /users/me/privacy", authMW(http.HandlerFunc(h.UpdatePrivacy)))
+	mux.Handle("POST /users/me/avatar", authMW(http.HandlerFunc(h.UpdateAvatar)))
 }
 
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
@@ -38,4 +46,115 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lib.WriteJSON(w, http.StatusOK, user)
+}
+
+func (h *UserHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, okID := ctx.Value(middleware.UserIDKey).(string)
+
+	log.Println("user id deleteme:", userID)
+
+	if !okID {
+		lib.WriteErrorJSON(w, http.StatusUnauthorized, "Unauthorized: identity missing in context")
+		return
+	}
+
+	err := h.userService.DeleteMe(ctx, userID)
+	if err != nil {
+		lib.WriteErrorJSON(w, http.StatusNotFound, "User profile not found")
+		return
+	}
+
+	lib.WriteJSON(w, http.StatusOK, map[string]string{"message": "successfull"})
+}
+
+func (h *UserHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, _ := ctx.Value(middleware.UserIDKey).(string)
+	roleStr, _ := ctx.Value(middleware.UserRoleKey).(string)
+	userRole := lib.UserRole(roleStr)
+
+	var result any
+	var err error
+
+	switch userRole {
+	case lib.RoleStudent:
+		var req dto.UpdateMeCandidateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			lib.WriteErrorJSON(w, http.StatusBadRequest, "invalid candidate request body")
+			return
+		}
+		result, err = h.userService.UpdateCandidate(ctx, userID, req)
+
+	case lib.RoleEmployer:
+		var req dto.UpdateMeEmployerRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			lib.WriteErrorJSON(w, http.StatusBadRequest, "invalid employer request body")
+			return
+		}
+		result, err = h.userService.UpdateEmployer(ctx, userID, req)
+
+	default:
+		lib.WriteErrorJSON(w, http.StatusForbidden, "this role cannot update profile")
+		return
+	}
+
+	if err != nil {
+		lib.WriteErrorJSON(w, http.StatusInternalServerError, "update failed: "+err.Error())
+		return
+	}
+
+	lib.WriteJSON(w, http.StatusOK, map[string]any{
+		"user": result,
+	})
+}
+
+func (h *UserHandler) Verify(w http.ResponseWriter, r *http.Request) {
+	var req dto.VerifyEmployerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		lib.WriteErrorJSON(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	userID := r.Context().Value(middleware.UserIDKey).(string)
+	role := lib.UserRole(r.Context().Value(middleware.UserRoleKey).(string))
+
+	if err := h.userService.Verify(r.Context(), userID, role, req.INN); err != nil {
+		lib.WriteErrorJSON(w, http.StatusForbidden, err.Error())
+		return
+	}
+	lib.WriteJSON(w, http.StatusOK, map[string]string{"message": "verification request submitted"})
+}
+
+func (h *UserHandler) UpdatePrivacy(w http.ResponseWriter, r *http.Request) {
+	var req dto.UpdatePrivacyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		lib.WriteErrorJSON(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	userID := r.Context().Value(middleware.UserIDKey).(string)
+	if err := h.userService.SetPrivacy(r.Context(), userID, req.IsPrivate); err != nil {
+		lib.WriteErrorJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	lib.WriteJSON(w, http.StatusOK, map[string]bool{"is_private": req.IsPrivate})
+}
+
+func (h *UserHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	var req dto.UpdateAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		lib.WriteErrorJSON(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	userID := r.Context().Value(middleware.UserIDKey).(string)
+	role := lib.UserRole(r.Context().Value(middleware.UserRoleKey).(string))
+
+	if err := h.userService.SetAvatar(r.Context(), userID, role, req.URL); err != nil {
+		lib.WriteErrorJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	lib.WriteJSON(w, http.StatusOK, map[string]string{"avatar_url": req.URL})
 }

@@ -2,8 +2,6 @@ package lib
 
 import (
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -17,6 +15,7 @@ type User struct {
 type ApplicantUser struct {
 	User
 	University   *string   `json:"university"`
+	Course       int       `json:"course"`
 	Skills       []string  `json:"skills"`
 	PortfolioURL *string   `json:"portfolio_url"`
 	GithubURL    *string   `json:"github_url"`
@@ -32,12 +31,4 @@ type EmployerUser struct {
 	LogoURL     *string   `json:"logo_url"`
 	WebsiteURL  *string   `json:"website_url"`
 	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-func GenerateHashByPassword(password string) (string, error) {
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), 10)
-	if err != nil {
-		return "", err
-	}
-	return string(hashed), nil
 }

@@ -16,6 +16,10 @@ import (
 	userHandler "springboard/internal/user/handler"
 	userRepo "springboard/internal/user/repository"
 	userService "springboard/internal/user/service"
+
+	oppHandler "springboard/internal/opportunity/handler"
+	oppRepo "springboard/internal/opportunity/repository"
+	oppService "springboard/internal/opportunity/service"
 )
 
 func main() {
@@ -35,6 +39,11 @@ func main() {
 	aService := authService.NewAuthService(aRepo, jwtManager)
 	aHandler := authHandler.NewAuthHandler(aService)
 
+	// OPPORTUNITY LAYER
+	oRepo := oppRepo.NewOpportunityRepository(db)
+	oService := oppService.NewOpportunityService(oRepo, uRepo)
+	oHandler := oppHandler.NewOpportunityHandler(oService)
+
 	// MIDDLEWARE
 	authMW := middleware.CheckTokenMiddleware(jwtManager)
 
@@ -44,8 +53,9 @@ func main() {
 	// PUBLIC ROUTES
 	aHandler.RegisterRoutes(api)
 
-	// PRIVATE ROUTES
+	// PRIVATE & PROTECTED ROUTES
 	uHandler.RegisterRoutes(api, authMW)
+	oHandler.RegisterRoutes(api, authMW)
 
 	// CREATE A GROUP /api
 	mainMux := http.NewServeMux()
