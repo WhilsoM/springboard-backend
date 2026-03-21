@@ -22,6 +22,10 @@ type UserService interface {
 	Verify(ctx context.Context, userID string, role lib.UserRole, inn string) error
 	SetPrivacy(ctx context.Context, userID string, isPrivate bool) error
 	SetAvatar(ctx context.Context, userID string, role lib.UserRole, url string) error
+	SearchApplicants(ctx context.Context, query string, limit, offset int) ([]lib.ApplicantUser, error)
+	SendRequest(ctx context.Context, senderID, receiverID string) error
+	HandleContactRequest(ctx context.Context, userID, requestID, status string) error
+	GetMyContacts(ctx context.Context, userID string) ([]lib.User, error)
 }
 
 type userService struct {
@@ -78,4 +82,31 @@ func (s *userService) SetPrivacy(ctx context.Context, userID string, isPrivate b
 
 func (s *userService) SetAvatar(ctx context.Context, userID string, role lib.UserRole, url string) error {
 	return s.repo.UpdateAvatar(ctx, userID, role, url)
+}
+
+func (s *userService) SearchApplicants(ctx context.Context, query string, limit, offset int) ([]lib.ApplicantUser, error) {
+	log.Print("SearchApplicants service start")
+	return s.repo.GetApplicants(ctx, query, limit, offset)
+}
+
+func (s *userService) SendRequest(ctx context.Context, senderID, receiverID string) error {
+	log.Print("SendRequest service start")
+	if senderID == receiverID {
+		return errors.New("you cannot add yourself to contacts")
+	}
+	return s.repo.CreateContactRequest(ctx, senderID, receiverID)
+}
+
+func (s *userService) HandleContactRequest(ctx context.Context, userID, requestID, status string) error {
+	log.Print("HandleContactRequest service start")
+	if status != "accepted" && status != "rejected" {
+		return errors.New("invalid status: must be accepted or rejected")
+	}
+	// TODO: add validation receiver id is owner to user id
+	return s.repo.UpdateContactStatus(ctx, requestID, status)
+}
+
+func (s *userService) GetMyContacts(ctx context.Context, userID string) ([]lib.User, error) {
+	log.Print("GetMyContacts service start")
+	return s.repo.GetContacts(ctx, userID)
 }

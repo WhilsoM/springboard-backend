@@ -20,6 +20,10 @@ type UserRepository interface {
 	VerifyEmployer(ctx context.Context, userID string, inn string) error
 	UpdatePrivacy(ctx context.Context, userID string, isPrivate bool) error
 	UpdateAvatar(ctx context.Context, userID string, role lib.UserRole, url string) error
+	GetApplicants(ctx context.Context, query string, limit, offset int) ([]lib.ApplicantUser, error)
+	CreateContactRequest(ctx context.Context, senderID, receiverID string) error
+	UpdateContactStatus(ctx context.Context, requestID, status string) error
+	GetContacts(ctx context.Context, userID string) ([]lib.User, error)
 }
 
 type userRepository struct {
@@ -84,10 +88,15 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
 	case lib.RoleStudent:
 		var applicant lib.ApplicantUser
 		query := `
-            SELECT u.id, u.email, u.role, u.display_name,
-                   cp.university, cp.course, cp.skills, cp.portfolio_url, cp.github_url, cp.updated_at
+						SELECT u.id, u.email, u.role, u.display_name,
+                   COALESCE(cp.university, ''),
+                   COALESCE(cp.course, 0),
+                   COALESCE(cp.skills, '{}'),
+                   COALESCE(cp.portfolio_url, ''),
+                   COALESCE(cp.github_url, ''),
+                   COALESCE(cp.updated_at, NOW())
             FROM users u
-            JOIN candidate_profiles cp ON u.id = cp.user_id
+            LEFT JOIN candidate_profiles cp ON u.id = cp.user_id
             WHERE u.id = $1`
 
 		err := r.dbpool.QueryRow(ctx, query, id).Scan(
@@ -95,7 +104,9 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
 			&applicant.University, &applicant.Course, &applicant.Skills, &applicant.PortfolioURL, &applicant.GithubURL,
 			&applicant.UpdatedAt,
 		)
+
 		if err != nil {
+			log.Printf("Scan error: %v", err)
 			return nil, err
 		}
 		return applicant, nil
@@ -103,10 +114,16 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
 	case lib.RoleEmployer:
 		var employer lib.EmployerUser
 		query := `
-            SELECT u.id, u.email, u.role, u.display_name,
-                   ep.company_name, ep.is_verified, ep.inn, ep.description, ep.website_url, ep.logo_url, ep.updated_at
+						SELECT u.id, u.email, u.role, u.display_name,
+                   COALESCE(ep.company_name, ''),
+                   COALESCE(ep.is_verified, false),
+                   COALESCE(ep.inn, ''),
+                   COALESCE(ep.description, ''),
+                   COALESCE(ep.website_url, ''),
+                   COALESCE(ep.logo_url, ''),
+                   COALESCE(ep.updated_at, NOW())
             FROM users u
-            JOIN employer_profiles ep ON u.id = ep.user_id
+            LEFT JOIN employer_profiles ep ON u.id = ep.user_id
             WHERE u.id = $1`
 
 		err := r.dbpool.QueryRow(ctx, query, id).Scan(
@@ -116,6 +133,7 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
 			&employer.UpdatedAt,
 		)
 		if err != nil {
+			log.Printf("Scan error: %v", err)
 			return nil, err
 		}
 		return employer, nil
@@ -224,4 +242,72 @@ func (r *userRepository) UpdateAvatar(ctx context.Context, userID string, role l
 	}
 	_, err := r.dbpool.Exec(ctx, query, url, userID)
 	return err
+}
+func (r *userRepository) GetApplicants(ctx context.Context, query string, limit, offset int) ([]lib.ApplicantUser, error) {
+	sql := `
+        SELECT u.id, u.email, u.role, u.display_name,
+               COALESCE(cp.university, ''),
+               COALESCE(cp.skills, '{}'),
+               COALESCE(cp.avatar_url, '')
+        FROM users u
+        JOIN candidate_profiles cp ON u.id = cp.user_id
+        WHERE u.role = 'applicant'
+          AND u.is_private = false
+          AND (u.display_name ILIKE $1 OR cp.university ILIKE $1)
+        LIMIT $2 OFFSET $3`
+
+	rows, err := r.dbpool.Query(ctx, sql, "%"+query+"%", limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query applicants: %w", err)
+	}
+	defer rows.Close()
+
+	applicants := make([]lib.ApplicantUser, 0, limit)
+	for rows.Next() {
+		var a lib.ApplicantUser
+		err := rows.Scan(&a.ID, &a.Email, &a.Role, &a.DisplayName, &a.University, &a.Skills, &a.AvatarURL)
+		if err != nil {
+			return nil, fmt.Errorf("scan applicant: %w", err)
+		}
+		applicants = append(applicants, a)
+	}
+	return applicants, nil
+}
+
+func (r *userRepository) CreateContactRequest(ctx context.Context, senderID, receiverID string) error {
+	query := `INSERT INTO contacts (sender_id, receiver_id, status) VALUES ($1, $2, 'pending')`
+	_, err := r.dbpool.Exec(ctx, query, senderID, receiverID)
+	return err
+}
+
+func (r *userRepository) UpdateContactStatus(ctx context.Context, requestID, status string) error {
+	query := `UPDATE contacts SET status = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.dbpool.Exec(ctx, query, status, requestID)
+	return err
+}
+
+func (r *userRepository) GetContacts(ctx context.Context, userID string) ([]lib.User, error) {
+	query := `
+        SELECT u.id, u.email, u.role, u.display_name
+        FROM users u
+        JOIN contacts c ON (c.sender_id = u.id OR c.receiver_id = u.id)
+        WHERE (c.sender_id = $1 OR c.receiver_id = $1)
+          AND c.status = 'accepted'
+          AND u.id != $1`
+
+	rows, err := r.dbpool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	contacts := make([]lib.User, 0)
+	for rows.Next() {
+		var u lib.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.DisplayName); err != nil {
+			return nil, err
+		}
+		contacts = append(contacts, u)
+	}
+	return contacts, nil
 }

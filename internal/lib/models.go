@@ -19,6 +19,7 @@ type ApplicantUser struct {
 	Skills       []string  `json:"skills"`
 	PortfolioURL *string   `json:"portfolio_url"`
 	GithubURL    *string   `json:"github_url"`
+	AvatarURL    *string   `json:"avatar_url"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 

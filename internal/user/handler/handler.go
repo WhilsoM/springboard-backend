@@ -25,6 +25,11 @@ func (h *UserHandler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handle
 	mux.Handle("POST /users/me/verify", authMW(http.HandlerFunc(h.Verify)))
 	mux.Handle("PATCH /users/me/privacy", authMW(http.HandlerFunc(h.UpdatePrivacy)))
 	mux.Handle("POST /users/me/avatar", authMW(http.HandlerFunc(h.UpdateAvatar)))
+	// NETWORK ROUTES
+	mux.Handle("GET /applicants", authMW(http.HandlerFunc(h.SearchApplicants)))
+	mux.Handle("POST /network/request/{id}", authMW(http.HandlerFunc(h.SendRequest)))
+	mux.Handle("PATCH /network/request/{request_id}", authMW(http.HandlerFunc(h.AcceptRejectRequest)))
+	mux.Handle("GET /network/contacts", authMW(http.HandlerFunc(h.GetContacts)))
 }
 
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +45,7 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.userService.GetMe(ctx, userID, lib.UserRole(userRole))
+	log.Println("user", user)
 	if err != nil {
 		lib.WriteErrorJSON(w, http.StatusNotFound, "User profile not found")
 		return
@@ -157,4 +163,52 @@ func (h *UserHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lib.WriteJSON(w, http.StatusOK, map[string]string{"avatar_url": req.URL})
+}
+
+func (h *UserHandler) SearchApplicants(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	applicants, err := h.userService.SearchApplicants(r.Context(), query, 20, 0)
+	if err != nil {
+		lib.WriteErrorJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	lib.WriteJSON(w, http.StatusOK, map[string][]lib.ApplicantUser{"applicants": applicants})
+}
+
+func (h *UserHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
+	senderID := r.Context().Value(middleware.UserIDKey).(string)
+	receiverID := r.PathValue("id")
+
+	if err := h.userService.SendRequest(r.Context(), senderID, receiverID); err != nil {
+		lib.WriteErrorJSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	lib.WriteJSON(w, http.StatusCreated, map[string]string{"message": "request sent"})
+}
+
+func (h *UserHandler) AcceptRejectRequest(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(middleware.UserIDKey).(string)
+	requestID := r.PathValue("request_id")
+
+	var req dto.HandleContactRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		lib.WriteErrorJSON(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	if err := h.userService.HandleContactRequest(r.Context(), userID, requestID, req.Status); err != nil {
+		lib.WriteErrorJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	lib.WriteJSON(w, http.StatusOK, map[string]string{"status": req.Status})
+}
+
+func (h *UserHandler) GetContacts(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(middleware.UserIDKey).(string)
+	contacts, err := h.userService.GetMyContacts(r.Context(), userID)
+	if err != nil {
+		lib.WriteErrorJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	lib.WriteJSON(w, http.StatusOK, map[string][]lib.User{"contacts": contacts})
 }

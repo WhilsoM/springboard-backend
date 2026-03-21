@@ -40,3 +40,14 @@ type UpdatePrivacyRequest struct {
 type UpdateAvatarRequest struct {
 	URL string `json:"url"`
 }
+
+type HandleContactRequest struct {
+	Status string `json:"status"` // "accepted" or "rejected"
+}
+
+type ContactResponse struct {
+	ID          string `json:"id"`
+	Email       string `json:"email"`
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
+}
