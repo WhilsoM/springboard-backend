@@ -24,6 +24,12 @@ import (
 	appHandler "springboard/internal/application/handler"
 	appRepo "springboard/internal/application/repository"
 	appService "springboard/internal/application/service"
+
+	adminHandler "springboard/internal/admin/handler"
+	adminRepo "springboard/internal/admin/repository"
+	adminService "springboard/internal/admin/service"
+
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -53,6 +59,11 @@ func main() {
 	appService := appService.NewApplicationService(appRepo)
 	appHandler := appHandler.NewApplicationHandler(appService)
 
+	// ADMIN LAYER
+	adminRepo := adminRepo.NewAdminRepository(db)
+	adminService := adminService.NewAdminService(adminRepo)
+	adminHandler := adminHandler.NewAdminHandler(adminService)
+
 	// MIDDLEWARE
 	authMW := middleware.CheckTokenMiddleware(jwtManager)
 
@@ -66,17 +77,28 @@ func main() {
 	uHandler.RegisterRoutes(api, authMW)
 	oHandler.RegisterRoutes(api, authMW)
 	appHandler.RegisterRoutes(api, authMW)
+	adminHandler.RegisterRoutes(api, authMW)
 
 	// CREATE A GROUP /api
 	mainMux := http.NewServeMux()
 
 	mainMux.Handle("/api/", http.StripPrefix("/api", api))
 
+	corsOptions := cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173", "https://your-production-app.ru"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization", "authorization", "X-Requested-With"},
+		AllowCredentials: true,
+		Debug:            true,
+	}
+	c := cors.New(corsOptions)
+
 	wrappedMux := middleware.LoggerMiddleware(mainMux)
+	finalHandler := c.Handler(wrappedMux)
 
 	server := http.Server{
 		Addr:         cfg.Addr,
-		Handler:      wrappedMux,
+		Handler:      finalHandler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  time.Minute,

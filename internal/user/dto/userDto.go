@@ -16,8 +16,7 @@ type UpdateMeEmployerRequest struct {
 	CompanyName string `json:"company_name" db:"company_name"`
 	Description string `json:"description" db:"description"`
 	WebsiteURL  string `json:"website_url" db:"website_url"`
-	LogoURL     string `json:"logo_url" db:"logo_url"`
-	IsVerified  bool   `json:"is_verified" db:"is_verified"`
+	AvatarURL   string `json:"avatar_url" db:"avatar_url"`
 }
 
 type UpdateMeCandidateRequest struct {
@@ -38,7 +37,7 @@ type UpdatePrivacyRequest struct {
 }
 
 type UpdateAvatarRequest struct {
-	URL string `json:"url"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 type HandleContactRequest struct {

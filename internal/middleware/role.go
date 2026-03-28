@@ -6,24 +6,30 @@ import (
 )
 
 // check user role
-func RoleMiddleware(allowedRoles ...lib.UserRole) func(next http.Handler) http.Handler {
+func RequireRole(allowedRoles ...lib.UserRole) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userRole, ok := r.Context().Value("role").(lib.UserRole)
+			roleStr, ok := r.Context().Value(UserRoleKey).(string)
 			if !ok {
-				lib.WriteErrorJSON(w, http.StatusUnauthorized, "Unauthorized")
+				lib.WriteErrorJSON(w, http.StatusUnauthorized, "role missing in context")
 				return
 			}
 
-			// check if user role is allowed
-			for _, role := range allowedRoles {
-				if userRole == role {
-					next.ServeHTTP(w, r)
-					return
+			userRole := lib.UserRole(roleStr)
+			hasAccess := false
+			for _, allowed := range allowedRoles {
+				if userRole == allowed {
+					hasAccess = true
+					break
 				}
 			}
 
-			lib.WriteErrorJSON(w, http.StatusForbidden, "You don't have enough permissions")
+			if !hasAccess {
+				lib.WriteErrorJSON(w, http.StatusForbidden, "access denied: insufficient permissions")
+				return
+			}
+
+			next.ServeHTTP(w, r)
 		})
 	}
 }

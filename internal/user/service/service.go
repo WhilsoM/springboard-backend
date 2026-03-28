@@ -26,6 +26,7 @@ type UserService interface {
 	SendRequest(ctx context.Context, senderID, receiverID string) error
 	HandleContactRequest(ctx context.Context, userID, requestID, status string) error
 	GetMyContacts(ctx context.Context, userID string) ([]lib.User, error)
+	GetUserProfile(ctx context.Context, targetID string) (any, error)
 }
 
 type userService struct {
@@ -109,4 +110,8 @@ func (s *userService) HandleContactRequest(ctx context.Context, userID, requestI
 func (s *userService) GetMyContacts(ctx context.Context, userID string) ([]lib.User, error) {
 	log.Print("GetMyContacts service start")
 	return s.repo.GetContacts(ctx, userID)
+}
+
+func (s *userService) GetUserProfile(ctx context.Context, targetID string) (any, error) {
+	return s.repo.GetPublicProfile(ctx, targetID)
 }

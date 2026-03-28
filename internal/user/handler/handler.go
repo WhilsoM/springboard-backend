@@ -24,7 +24,8 @@ func (h *UserHandler) RegisterRoutes(mux *http.ServeMux, authMW func(http.Handle
 	mux.Handle("PUT /users/me", authMW(http.HandlerFunc(h.UpdateMe)))
 	mux.Handle("POST /users/me/verify", authMW(http.HandlerFunc(h.Verify)))
 	mux.Handle("PATCH /users/me/privacy", authMW(http.HandlerFunc(h.UpdatePrivacy)))
-	mux.Handle("POST /users/me/avatar", authMW(http.HandlerFunc(h.UpdateAvatar)))
+	mux.Handle("PATCH /users/me/avatar", authMW(http.HandlerFunc(h.UpdateAvatar)))
+	mux.Handle("GET /users/{id}", authMW(http.HandlerFunc(h.GetUserProfile)))
 	// NETWORK ROUTES
 	mux.Handle("GET /applicants", authMW(http.HandlerFunc(h.SearchApplicants)))
 	mux.Handle("POST /network/request/{id}", authMW(http.HandlerFunc(h.SendRequest)))
@@ -158,11 +159,11 @@ func (h *UserHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(middleware.UserIDKey).(string)
 	role := lib.UserRole(r.Context().Value(middleware.UserRoleKey).(string))
 
-	if err := h.userService.SetAvatar(r.Context(), userID, role, req.URL); err != nil {
+	if err := h.userService.SetAvatar(r.Context(), userID, role, req.AvatarURL); err != nil {
 		lib.WriteErrorJSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	lib.WriteJSON(w, http.StatusOK, map[string]string{"avatar_url": req.URL})
+	lib.WriteJSON(w, http.StatusOK, map[string]string{"avatar_url": req.AvatarURL})
 }
 
 func (h *UserHandler) SearchApplicants(w http.ResponseWriter, r *http.Request) {
@@ -211,4 +212,18 @@ func (h *UserHandler) GetContacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lib.WriteJSON(w, http.StatusOK, map[string][]lib.User{"contacts": contacts})
+}
+
+func (h *UserHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
+	targetID := r.PathValue("id")
+	profile, err := h.userService.GetUserProfile(r.Context(), targetID)
+	if err != nil {
+		if err.Error() == "profile is private" {
+			lib.WriteErrorJSON(w, http.StatusForbidden, "This profile is private")
+			return
+		}
+		lib.WriteErrorJSON(w, http.StatusNotFound, "User not found")
+		return
+	}
+	lib.WriteJSON(w, http.StatusOK, profile)
 }

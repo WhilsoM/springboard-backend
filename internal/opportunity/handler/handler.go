@@ -33,6 +33,8 @@ func (h *OpportunityHandler) List(w http.ResponseWriter, r *http.Request) {
 		Type:   r.URL.Query().Get("type"),
 		Format: r.URL.Query().Get("format"),
 		Search: r.URL.Query().Get("search"),
+		Tags:   r.URL.Query()["tags"],
+		City:   r.URL.Query().Get("city"),
 	}
 	log.Println("List get filters", filters)
 	res, err := h.service.GetAll(r.Context(), filters)

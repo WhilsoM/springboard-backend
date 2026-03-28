@@ -29,7 +29,7 @@ type EmployerUser struct {
 	IsVerified  bool      `json:"is_verified"`
 	INN         *string   `json:"inn"`
 	Description *string   `json:"description"`
-	LogoURL     *string   `json:"logo_url"`
+	AvatarURL   *string   `json:"avatar_url"`
 	WebsiteURL  *string   `json:"website_url"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

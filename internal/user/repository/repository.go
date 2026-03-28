@@ -24,6 +24,7 @@ type UserRepository interface {
 	CreateContactRequest(ctx context.Context, senderID, receiverID string) error
 	UpdateContactStatus(ctx context.Context, requestID, status string) error
 	GetContacts(ctx context.Context, userID string) ([]lib.User, error)
+	GetPublicProfile(ctx context.Context, targetID string) (any, error)
 }
 
 type userRepository struct {
@@ -94,6 +95,7 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
                    COALESCE(cp.skills, '{}'),
                    COALESCE(cp.portfolio_url, ''),
                    COALESCE(cp.github_url, ''),
+                   COALESCE(cp.avatar_url, ''),
                    COALESCE(cp.updated_at, NOW())
             FROM users u
             LEFT JOIN candidate_profiles cp ON u.id = cp.user_id
@@ -101,7 +103,7 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
 
 		err := r.dbpool.QueryRow(ctx, query, id).Scan(
 			&applicant.ID, &applicant.Email, &applicant.Role, &applicant.DisplayName,
-			&applicant.University, &applicant.Course, &applicant.Skills, &applicant.PortfolioURL, &applicant.GithubURL,
+			&applicant.University, &applicant.Course, &applicant.Skills, &applicant.PortfolioURL, &applicant.GithubURL, &applicant.AvatarURL,
 			&applicant.UpdatedAt,
 		)
 
@@ -120,7 +122,7 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
                    COALESCE(ep.inn, ''),
                    COALESCE(ep.description, ''),
                    COALESCE(ep.website_url, ''),
-                   COALESCE(ep.logo_url, ''),
+                   COALESCE(ep.avatar_url, ''),
                    COALESCE(ep.updated_at, NOW())
             FROM users u
             LEFT JOIN employer_profiles ep ON u.id = ep.user_id
@@ -129,7 +131,7 @@ func (r *userRepository) GetFullUserByID(ctx context.Context, id string, role li
 		err := r.dbpool.QueryRow(ctx, query, id).Scan(
 			&employer.ID, &employer.Email, &employer.Role, &employer.DisplayName,
 			&employer.CompanyName, &employer.IsVerified, &employer.INN,
-			&employer.Description, &employer.WebsiteURL, &employer.LogoURL,
+			&employer.Description, &employer.WebsiteURL, &employer.AvatarURL,
 			&employer.UpdatedAt,
 		)
 		if err != nil {
@@ -203,15 +205,14 @@ func (r *userRepository) UpdateEmployer(ctx context.Context, userID string, data
 
 	queryProfile := `
         UPDATE employer_profiles
-        SET company_name = $1, description = $2, website_url = $3, logo_url = $4, is_verified = $5, updated_at = NOW()
-        WHERE user_id = $6`
+        SET company_name = $1, description = $2, website_url = $3, avatar_url = $4, updated_at = NOW()
+        WHERE user_id = $5`
 
 	_, err = tx.Exec(ctx, queryProfile,
 		data.CompanyName,
 		data.Description,
 		data.WebsiteURL,
-		data.LogoURL,
-		data.IsVerified,
+		data.AvatarURL,
 		userID,
 	)
 	if err != nil {
@@ -236,7 +237,7 @@ func (r *userRepository) UpdatePrivacy(ctx context.Context, userID string, isPri
 func (r *userRepository) UpdateAvatar(ctx context.Context, userID string, role lib.UserRole, url string) error {
 	var query string
 	if role == lib.RoleEmployer {
-		query = `UPDATE employer_profiles SET logo_url = $1, updated_at = NOW() WHERE user_id = $2`
+		query = `UPDATE employer_profiles SET avatar_url  = $1, updated_at = NOW() WHERE user_id = $2`
 	} else {
 		query = `UPDATE candidate_profiles SET avatar_url = $1, updated_at = NOW() WHERE user_id = $2`
 	}
@@ -292,7 +293,7 @@ func (r *userRepository) GetContacts(ctx context.Context, userID string) ([]lib.
         FROM users u
         JOIN contacts c ON (c.sender_id = u.id OR c.receiver_id = u.id)
         WHERE (c.sender_id = $1 OR c.receiver_id = $1)
-          AND c.status = 'accepted'
+        	AND c.status IN ('accepted', 'pending')
           AND u.id != $1`
 
 	rows, err := r.dbpool.Query(ctx, query, userID)
@@ -310,4 +311,19 @@ func (r *userRepository) GetContacts(ctx context.Context, userID string) ([]lib.
 		contacts = append(contacts, u)
 	}
 	return contacts, nil
+}
+
+func (r *userRepository) GetPublicProfile(ctx context.Context, targetID string) (any, error) {
+	var role lib.UserRole
+	var isPrivate bool
+	err := r.dbpool.QueryRow(ctx, "SELECT role, is_private FROM users WHERE id = $1", targetID).Scan(&role, &isPrivate)
+	if err != nil {
+		return nil, err
+	}
+
+	if isPrivate {
+		return nil, fmt.Errorf("profile is private")
+	}
+
+	return r.GetFullUserByID(ctx, targetID, role)
 }
