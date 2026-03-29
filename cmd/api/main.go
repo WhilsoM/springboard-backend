@@ -85,7 +85,7 @@ func main() {
 	mainMux.Handle("/api/", http.StripPrefix("/api", api))
 
 	corsOptions := cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173", "https://springboard-frontend.vercel.app/"},
+		AllowedOrigins:   []string{"http://localhost:5173", "https://springboard-frontend.vercel.app"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization", "authorization", "X-Requested-With"},
 		AllowCredentials: true,
