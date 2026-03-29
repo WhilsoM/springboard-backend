@@ -1,14 +1,44 @@
-# Springboard Backend
+# Springboard — Backend
 
-Stack:
+Ядро системы на языке Go, реализующее логику нетворкинга, управления вакансиями и авторизации. Построено на принципах чистой архитектуры с четким разделением ответственности.
 
-- Go
-- net/http
-- Postgresql
-- Docker
+## Технологический стек
 
-Architecture
+- **Language:** Golang
+- **Database:** PostgreSQL (pgx driver)
+- **Router:** Standard library (net/http)
+- **Auth:** JWT (v5)
+- **Config:** Cleanenv (YAML/TOML/ENV support)
+- **CORS:** rs/cors
 
-- handler - http layer
-- service - business logic layer
-- repository - work with database layer
+## Архитектура проекта
+
+Приложение следует многослойной архитектуре (Clean Architecture), что позволяет легко заменять реализации базы данных или внешних API без изменения бизнес-логики.
+
+### Основные слои:
+
+- **Handlers:** Слой доставки (REST API), обработка HTTP-запросов и валидация входных данных.
+- **Services:** Бизнес-логика приложения. Координация действий между репозиториями.
+- **Repositories:** Работа с данными (PostgreSQL). Реализация SQL-запросов.
+- **Internal/Lib:** Вспомогательные утилиты (JWT Manager, Logger).
+- **Internal/Config:** Загрузка и управление конфигурациями приложения.
+
+## Функциональные модули
+
+- **Auth:** Регистрация и аутентификация через JWT.
+- **User:** Управление профилем студента и настройками приватности.
+- **Opportunity:** Создание и поиск предложений (вакансии, проекты).
+- **Application:** Система откликов и взаимодействия между пользователями.
+- **Admin:** Инструменты модерации и управления платформой.
+
+## Развертывание
+
+### Переменные окружения:
+
+Создайте файл `.env` на основе примера:
+
+```env
+ADDR=0.0.0.0:8080
+DATABASE_URL=postgres://user:pass@localhost:5432/db
+SECRET_KEY=your_secret_key
+```
